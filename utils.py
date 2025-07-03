@@ -5,8 +5,9 @@ import pdfplumber
 import re
 
 # Load environment variable from .env
-load_dotenv()
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+import streamlit as st
+TOGETHER_API_KEY = st.secrets["TOGETHER_API_KEY"]
+
 
 def extract_text(uploaded_file):
     """Extract text from uploaded PDF or TXT file."""
