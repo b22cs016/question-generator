@@ -1,16 +1,13 @@
-import os
-import requests
-from dotenv import load_dotenv
-import pdfplumber
 import re
-
-# Load environment variable from .env
+import pdfplumber
 import streamlit as st
+import requests
+
+# Read Together AI API key securely
 TOGETHER_API_KEY = st.secrets["TOGETHER_API_KEY"]
 
-
 def extract_text(uploaded_file):
-    """Extract text from uploaded PDF or TXT file."""
+    """Extract text from a PDF or TXT file."""
     if uploaded_file.name.endswith('.pdf'):
         text = ""
         with pdfplumber.open(uploaded_file) as pdf:
@@ -24,20 +21,19 @@ def extract_text(uploaded_file):
 
 
 def generate_questions(text, num_questions):
-    """Generate meaningful, higher-order questions using Together AI."""
+    """Generate diverse, meaningful questions using Together AI."""
     url = "https://api.together.xyz/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {TOGETHER_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    # Prompt tuned for application & reasoning
+    # STRONG prompt for better diversity + formatting
     prompt = (
-        f"You are a creative educational assistant. Based on the following text, generate exactly {num_questions} diverse, higher-order thinking questions. "
-        f"Questions should cover real-world applications, conceptual understanding, problem-solving, and comparisons of composite solids. "
-        f"Use a mix of question types: why, how, what-if, compare, and applied math. "
-        f"Only return the questions as a numbered list (e.g., 1. ..., 2. ...). Do not include explanations or headings.\n\n"
-        f"CONTENT:\n{text.strip()}\n\nQUESTIONS:"
+        f"Generate exactly {num_questions} diverse and meaningful questions based on the content below. "
+        f"Include a mix of factual (what/how), conceptual (why), comparative, and real-world application questions. "
+        f"Only return the questions, in a numbered list format (1., 2., etc.), with each ending in a question mark.\n\n"
+        f"Content:\n{text.strip()}\n\nQuestions:"
     )
 
     payload = {
@@ -46,14 +42,14 @@ def generate_questions(text, num_questions):
             {
                 "role": "system",
                 "content": (
-                    "You are a strict question generator. Only return the questions. "
-                    "Do not include statements like 'Sure!', 'Understood', or any explanation."
+                    "You are a strict educational question generator. Do not provide explanations or headings. "
+                    "Only output a numbered list of diverse questions ending in question marks."
                 )
             },
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.7,
-        "max_tokens": 900
+        "max_tokens": 1000
     }
 
     try:
@@ -62,15 +58,15 @@ def generate_questions(text, num_questions):
         output = response.json()
         generated_text = output["choices"][0]["message"]["content"]
 
-        # Debug: print the raw output from the model
-        print("\n\n--- RAW MODEL OUTPUT ---\n")
-        print(generated_text)
-        print("\n-------------------------\n")
+        # Print debug output (Streamlit UI option)
+        if st.session_state.get("debug_mode", False):
+            st.markdown("### 🔍 Raw model output")
+            st.code(generated_text)
 
-        # Try to extract numbered questions
-        questions = re.findall(r'\d+[.)]\s*(.+?\?)', generated_text)
+        # Extract using regex
+        questions = re.findall(r'\d+[.)]?\s*(.+?\?)', generated_text)
 
-        # Fallback: use lines with question marks
+        # Fallback: use any lines with question marks
         if not questions:
             lines = generated_text.strip().split("\n")
             questions = [line.strip("0123456789. )").strip() for line in lines if "?" in line]
